@@ -1,9 +1,7 @@
 package cryptocomparego
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -115,32 +113,20 @@ func (s *HistominuteServiceOp) Get(ctx context.Context, histominuteRequest *Hist
 		path = histominuteRequest.FormattedQueryString(histominuteBasePath)
 	}
 
-	reqUrl := fmt.Sprintf("%s%s", s.client.MinURL.String(), path)
-
-	resp, err := http.Get(reqUrl)
-	res := Response{}
-	res.Response = resp
+	req, err := s.client.NewRequest(ctx, http.MethodGet, *s.client.MinURL, path, nil)
 	if err != nil {
-		return nil, &res, err
+		return nil, nil, err
 	}
-	defer func() { resp.Body.Close() }()
 
-	buf, err := ioutil.ReadAll(resp.Body)
+	res := new(HistominuteResponse)
+	resp, err := s.client.Do(ctx, req, res)
 	if err != nil {
-		return nil, &res, err
-	}
-	if len(buf) <= 0 {
-		return nil, &res, errors.New("Empty response")
+		return nil, resp, err
 	}
 
-	hr := HistominuteResponse{}
-	err = json.Unmarshal(buf, &hr)
-	if err != nil {
-		return nil, &res, errors.Wrap(err, fmt.Sprintf("JSON Unmarshal error, raw string is '%s'", string(buf)))
-	}
-	if hr.Response == "Error" {
-		return nil, &res, errors.New(hr.Message)
+	if res.Response == "Error" {
+		return nil, resp, errors.New(res.Message)
 	}
 
-	return &hr, &res, nil
+	return res, resp, nil
 }

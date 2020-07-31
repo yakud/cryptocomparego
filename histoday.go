@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 
 	"bytes"
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"time"
@@ -134,31 +133,20 @@ func (s *HistodayServiceOp) Get(ctx context.Context, histodayRequest *HistodayRe
 		path = histodayRequest.FormattedQueryString(histodyBasePath)
 	}
 
-	reqUrl := fmt.Sprintf("%s%s", s.client.MinURL.String(), path)
-	resp, err := http.Get(reqUrl)
-	res := Response{}
-	res.Response = resp
+	req, err := s.client.NewRequest(ctx, http.MethodGet, *s.client.MinURL, path, nil)
 	if err != nil {
-		return nil, &res, err
-	}
-	defer func() { resp.Body.Close() }()
-
-	buf, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, &res, err
-	}
-	if len(buf) <= 0 {
-		return nil, &res, errors.New("Empty response")
+		return nil, nil, err
 	}
 
-	hr := histodayResp{}
-	err = json.Unmarshal(buf, &hr)
+	res := new(histodayResp)
+	resp, err := s.client.Do(ctx, req, res)
 	if err != nil {
-		return nil, &res, errors.Wrap(err, fmt.Sprintf("JSON Unmarshal error, raw string is '%s'", string(buf)))
-	}
-	if hr.Response == "Error" {
-		return nil, &res, errors.New(hr.Message)
+		return nil, resp, err
 	}
 
-	return hr.Data, &res, nil
+	if res.Response == "Error" {
+		return nil, resp, errors.New(res.Message)
+	}
+
+	return res.Data, resp, nil
 }
